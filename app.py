@@ -18,7 +18,7 @@ def get_stock_data(ticker):
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # 修正股息率與派息比率 (從截圖數據看 yfinance 有時回傳小數)
+        # 修正股息率與派息比率 (處理小數與百分比轉換)
         dy_raw = info.get("dividendYield", 0) or 0
         div_yield = dy_raw * 100 if dy_raw < 1 else dy_raw
         
@@ -41,7 +41,7 @@ def get_stock_data(ticker):
 # --- 3. 今日熱門推介功能 ---
 def show_recommendations():
     st.subheader("🔥 今日 AI 精選高息股 (熱門追蹤)")
-    # 預設投資者常關注的高息股
+    # 預設熱門關注股
     hot_tickers = ["0941.HK", "0005.HK", "0011.HK", "KO"] 
     cols = st.columns(len(hot_tickers))
     
@@ -60,7 +60,7 @@ st.markdown("---")
 recommended = show_recommendations()
 
 st.markdown("---")
-# 輸入框：點擊推介按鈕會自動填入
+# 輸入框：點擊推介按鈕會自動填入代號
 ticker_input = st.text_input("請輸入股票代號 (例如: 0941.HK, AAPL)", value=recommended if recommended else "0941.HK")
 
 if st.button("開始 AI 深度分析"):
@@ -81,7 +81,7 @@ if st.button("開始 AI 深度分析"):
             # --- AI 分析部分 (加入多模型輪詢防止 404) ---
             with st.spinner('AI 正在由雲端進行深度分析...'):
                 ai_success = False
-                # 嘗試不同的模型名稱，避開 404 報錯
+                # 嘗試多個可用模型名稱
                 model_candidates = ['gemini-1.5-flash', 'gemini-pro']
                 
                 for model_name in model_candidates:
@@ -106,4 +106,4 @@ if st.button("開始 AI 深度分析"):
             st.error("❌ 找不到股票數據，請檢查代號。")
 
 st.markdown("---")
-st.caption("🚨 免責聲明：本工具由 AI 生成分析，不構成投資建議。")
+st.caption("🚨 免責聲明：本工具由 AI 生成分析，僅供參考，不構成任何投資建議。")
