@@ -1,10 +1,9 @@
 import streamlit as st
 import yfinance as yf
 import google.generativeai as genai
-import pandas as pd
 
 # --- 1. 安全讀取 API Key (透過 Streamlit Secrets) ---
-# ⚠️ 請確保你已在 Streamlit Cloud 的 Settings > Secrets 加入了 GOOGLE_API_KEY
+# 請確保已在 Streamlit Cloud 的 Settings > Secrets 加入了 GOOGLE_API_KEY
 if "GOOGLE_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 else:
@@ -20,7 +19,7 @@ def get_stock_data(ticker):
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # 股息率單位修正
+        # 股息率單位修正 (yfinance 數據有時為 0.06，有時為 6.0)
         dy_raw = info.get("dividendYield", 0) or 0
         div_yield = dy_raw * 100 if dy_raw < 1 else dy_raw
         
@@ -29,6 +28,7 @@ def get_stock_data(ticker):
         payout = pr_raw * 100 if pr_raw < 2 else pr_raw
         
         return {
+            "symbol": ticker,
             "name": info.get("longName", "未知公司"),
             "yield": round(div_yield, 2),
             "payout": round(payout, 2),
@@ -40,13 +40,35 @@ def get_stock_data(ticker):
     except Exception:
         return None
 
-# --- 3. 網頁介面 ---
+# --- 3. 今日熱門推介組件 ---
+def show_recommendations():
+    st.subheader("🔥 今日 AI 精選高息股 (熱門追蹤)")
+    # 預設幾隻澳門/香港投資者常關注的高息股
+    hot_tickers = ["0941.HK", "0005.HK", "0011.HK", "1299.HK"] 
+    cols = st.columns(len(hot_tickers))
+    
+    selected_ticker = None
+    for i, t in enumerate(hot_tickers):
+        d = get_stock_data(t)
+        if d:
+            with cols[i]:
+                st.metric(label=f"{d['symbol']}", value=f"{d['yield']}%", delta=f"{d['price']} {d['currency']}")
+                if st.button(f"查看 {d['symbol']}", key=f"btn_{t}"):
+                    selected_ticker = d['symbol']
+    return selected_ticker
+
+# --- 4. 網頁主介面 ---
 st.title("🏹 AI 高息股獵人 (雲端穩定版)")
 st.markdown("---")
 
-ticker_input = st.text_input("請輸入股票代號 (例如: 0941.HK, 0005.HK, AAPL)", "0941.HK")
+# 顯示自動推介位
+recommended = show_recommendations()
 
-if st.button("開始掃描並進行 AI 審核"):
+st.markdown("---")
+# 輸入框：如果有點擊推介按鈕，則自動填入該代號
+ticker_input = st.text_input("請輸入股票代號 (例如: 0941.HK, 0005.HK, AAPL)", value=recommended if recommended else "0941.HK")
+
+if st.button("開始 AI 深度審核"):
     with st.spinner('正在從交易所抓取數據...'):
         data = get_stock_data(ticker_input)
         
@@ -61,8 +83,8 @@ if st.button("開始掃描並進行 AI 審核"):
             st.write(f"**公司名稱:** {data['name']} | **所屬行業:** {data['sector']}")
             st.markdown("---")
 
-            # --- 4. AI 分析部分 (加入多模型輪詢防止 404) ---
-            with st.spinner('AI 正在由雲端進行深度審核...'):
+            # --- AI 分析部分 (加入多模型輪詢防止 404) ---
+            with st.spinner('AI 正在由雲端進行深度分析...'):
                 ai_success = False
                 # 依序嘗試不同的模型名稱
                 model_candidates = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
@@ -83,15 +105,16 @@ if st.button("開始掃描並進行 AI 審核"):
                         st.subheader(f"🤖 AI 深度審核報告 ({model_name})")
                         st.info(response.text)
                         ai_success = True
-                        break # 成功後跳出循環
+                        break 
                     except Exception:
-                        continue # 失敗則嘗試下一個模型
+                        continue 
                 
                 if not ai_success:
-                    st.error("❌ AI 分析暫時不可用。請檢查 API Key 是否有效或稍後再試。")
+                    st.error("❌ AI 分析暫時不可用。請檢查您的 API Key 是否已更新且有效。")
         else:
-            st.error("❌ 找不到股票數據，請檢查代號是否正確（港股需加 .HK）。")
+            st.error("❌ 找不到股票數據，請檢查代號是否正確。")
 
-# --- 5. 頁腳與免責聲明 ---
+# --- 5. 頁腳與廣告預留位 ---
 st.markdown("---")
-st.caption("🚨 免責聲明：本工具由 AI 生成分析，僅供學習參考，不構成任何形式的投資建議。投資有風險，入市需謹慎。")
+st.caption("🚨 免責聲明：本工具由 AI 生成分析，僅供學習參考，不構成任何投資建議。")
+st.write("📢 贊助商廣告位 (AdSense 申請中)")
